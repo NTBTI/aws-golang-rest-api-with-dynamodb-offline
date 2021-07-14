@@ -1,0 +1,125 @@
+app: aws-golang-rest-api-with-dynamodb
+service: aws-golang-rest-api-with-dynamodb
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-offline  # should be last in list
+
+frameworkVersion: ">=1.1.0"
+
+custom:
+  endpoints:
+    dynamodb-url: 'http://dynamodb-local:8000'
+  tableNames:
+    todos: 'aws-node-rest-api-with-dynamodb-and-offline-dev'
+  dynamodb:
+    stages:
+      - dev
+    start:
+      host: dynamodb-local
+      port: 8000
+      noStart: true
+      migrate: false
+  stageType: ${opt:stage, self:provider.stage}
+  creds:
+    dynamodb:
+      dev:
+        id: something
+        secret: something
+        token: something
+
+provider:
+  name: aws
+  stage: dev
+  runtime: go1.x
+  region: us-east-1
+  environment:
+    #DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+    DYNAMODB_ENDPOINT: ${self:custom.endpoints.dynamodb-url}
+    DYNAMODB_TABLE: ${self:custom.tableNames.todos}
+    AWS_ACCESS_KEY_ID: ${self:custom.creds.dynamodb.${self:custom.stageType}.id}
+    AWS_SECRET_ACCESS_KEY: ${self:custom.creds.dynamodb.${self:custom.stageType}.secret}
+    AWS_ACCESS_KEY_TOKEN: ${self:custom.creds.dynamodb.${self:custom.stageType}.token}
+  # iamRoleStatements:
+  #   - Effect: 
+  #     Action:
+  #       - dynamodb:Query
+  #       - dynamodb:Scan
+  #       - dynamodb:GetItem
+  #       - dynamodb:PutItem
+  #       - dynamodb:UpdateItem
+  #       - dynamodb:DeleteItem
+  #     Resource: "arn:aws:dyamodb:${opt:region, self:provider.region}:*:table/${self.custom.tableNames.todos}"
+
+functions:
+  create:
+    handler: bin/create
+    package:
+      include:
+        - ./bin/create
+    events:
+      - http:
+          path: todos
+          method: post
+          cors: true
+  list:
+    handler: bin/list
+    package:
+      include:
+        - ./bin/list
+    events:
+      - http:
+          path: todos
+          method: get
+          cors: true
+  get:
+    handler: bin/get
+    package:
+      include:
+        - ./bin/get
+    events:
+      - http:
+          path: todos/{id}
+          method: get
+          cors: true
+  
+  update:
+    handler: bin/update
+    package:
+      include:
+        - ./bin/update
+    events:
+      - http:
+          path: todos/{id}
+          method: put
+          cors: true
+
+  delete:
+    handler: bin/delete
+    package:
+      include:
+        - ./bin/delete
+    events:
+      - http:
+          path: todos/{id}
+          method: delete
+          cors: true
+
+resources:
+  Resources:
+    TodosDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - 
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.tableNames.todos}
